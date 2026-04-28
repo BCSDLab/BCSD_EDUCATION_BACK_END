@@ -1,5 +1,6 @@
 import { ValidationPipe } from '@nestjs/common';
 import { NestFactory } from '@nestjs/core';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { ValidationException } from './common/exceptions/validation.exception';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -17,6 +18,18 @@ async function bootstrap() {
   );
   app.useGlobalInterceptors(new TransformInterceptor());
   app.useGlobalFilters(new AllExceptionsFilter());
+
+  const swaggerConfig = new DocumentBuilder()
+    .setTitle('BCSD Education API')
+    .setDescription('BCSD Education backend API documentation')
+    .setVersion('1.0.0')
+    .build();
+  const swaggerDocument = SwaggerModule.createDocument(app, swaggerConfig);
+
+  SwaggerModule.setup('docs', app, swaggerDocument, {
+    customSiteTitle: 'BCSD Education API Docs',
+    jsonDocumentUrl: 'docs-json',
+  });
 
   await app.listen(process.env.PORT ?? 3000);
 }
