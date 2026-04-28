@@ -1,0 +1,20 @@
+enum TrackCode {
+  FRONTEND
+  BACKEND
+  ANDROID
+  IOS
+  DESIGN
+  DATA_ANALYST
+  GAME
+  PRODUCT_MANAGER
+}
+
+model Track {
+  id             Int             @id @default(autoincrement())
+  code           TrackCode       @unique
+  name           String
+  createdAt      DateTime        @default(now())
+  semesterTracks SemesterTrack[]
+
+  @@map("tracks")
+}

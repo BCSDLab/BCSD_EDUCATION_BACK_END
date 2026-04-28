@@ -1,0 +1,47 @@
+enum SemesterHalf {
+  FIRST_HALF
+  SECOND_HALF
+}
+
+model Semester {
+  id             Int             @id @default(autoincrement())
+  year           Int
+  half           SemesterHalf
+  startDate      DateTime?       @db.Date
+  endDate        DateTime?       @db.Date
+  createdAt      DateTime        @default(now())
+  semesterTracks SemesterTrack[]
+
+  @@unique([year, half])
+  @@map("semesters")
+}
+
+model SemesterTrack {
+  id          Int                 @id @default(autoincrement())
+  semesterId  Int
+  trackId     Int
+  isActive    Boolean             @default(true)
+  createdAt   DateTime            @default(now())
+  semester    Semester            @relation(fields: [semesterId], references: [id], onDelete: Cascade)
+  track       Track               @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  memberships UserSemesterTrack[]
+
+  @@unique([semesterId, trackId])
+  @@map("semester_tracks")
+}
+
+model UserSemesterTrack {
+  id                Int           @id @default(autoincrement())
+  userId            Int
+  semesterTrackId   Int
+  role              Role          @default(BEGINNER)
+  isActive          Boolean       @default(true)
+  deactivatedReason String?
+  deactivatedAt     DateTime?
+  createdAt         DateTime      @default(now())
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  semesterTrack     SemesterTrack @relation(fields: [semesterTrackId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, semesterTrackId])
+  @@map("user_semester_tracks")
+}

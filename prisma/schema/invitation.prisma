@@ -1,0 +1,22 @@
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  EXPIRED
+  CANCELLED
+}
+
+model Invitation {
+  id             Int              @id @default(autoincrement())
+  email          String
+  tokenHash      String           @unique
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime
+  invitedById    Int
+  acceptedUserId Int?
+  createdAt      DateTime         @default(now())
+  acceptedAt     DateTime?
+  invitedBy      User             @relation("InvitationInvitedBy", fields: [invitedById], references: [id], onDelete: Restrict)
+  acceptedUser   User?            @relation("InvitationAcceptedUser", fields: [acceptedUserId], references: [id], onDelete: SetNull)
+
+  @@map("invitations")
+}
