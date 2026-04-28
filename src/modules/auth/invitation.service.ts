@@ -6,7 +6,13 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { InvitationStatus, Role, SemesterHalf } from '@prisma/client';
+import {
+  InvitationStatus,
+  Prisma,
+  Role,
+  SemesterHalf,
+  TrackCode,
+} from '@prisma/client';
 import { randomBytes } from 'crypto';
 import { PrismaService } from '../../prisma/prisma.service';
 import { InviteDto } from './dto/invite.dto';
@@ -39,6 +45,10 @@ export class InvitationService {
       throw new BadRequestException('이미 가입된 이메일입니다');
     }
 
+    const semesterTrack = await this.findActiveSemesterTrack(
+      dto.semesterId,
+      dto.trackCode,
+    );
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = this.authTokenService.hashToken(rawToken);
     const expiresAt = new Date(
@@ -62,6 +72,8 @@ export class InvitationService {
       this.prisma.invitation.create({
         data: {
           email: dto.email,
+          name: dto.name.trim(),
+          semesterTrackId: semesterTrack.id,
           tokenHash,
           expiresAt,
           invitedById: inviter.id,
@@ -71,6 +83,8 @@ export class InvitationService {
 
     return {
       email: dto.email,
+      name: dto.name.trim(),
+      semesterTrack: this.serializeSemesterTrack(semesterTrack),
       invitationToken: rawToken,
       expiresAt,
     };
@@ -78,33 +92,12 @@ export class InvitationService {
 
   async getInvitation(token: string) {
     const invitation = await this.findActiveInvitation(token);
-    const semesterTracks = await this.prisma.semesterTrack.findMany({
-      where: { isActive: true },
-      include: {
-        semester: true,
-        track: true,
-      },
-      orderBy: [{ semester: { year: 'desc' } }, { track: { code: 'asc' } }],
-    });
 
     return {
       email: invitation.email,
+      name: invitation.name,
       expiresAt: invitation.expiresAt,
-      semesterTracks: semesterTracks.map((semesterTrack) => ({
-        id: semesterTrack.id,
-        semester: {
-          year: semesterTrack.semester.year,
-          half: semesterTrack.semester.half,
-          label: this.formatSemester(
-            semesterTrack.semester.year,
-            semesterTrack.semester.half,
-          ),
-        },
-        track: {
-          code: semesterTrack.track.code,
-          name: semesterTrack.track.name,
-        },
-      })),
+      semesterTrack: this.serializeSemesterTrack(invitation.semesterTrack),
     };
   }
 
@@ -112,6 +105,14 @@ export class InvitationService {
     const tokenHash = this.authTokenService.hashToken(token);
     const invitation = await this.prisma.invitation.findUnique({
       where: { tokenHash },
+      include: {
+        semesterTrack: {
+          include: {
+            semester: true,
+            track: true,
+          },
+        },
+      },
     });
 
     if (!invitation) {
@@ -130,7 +131,36 @@ export class InvitationService {
       throw new BadRequestException('만료된 초대 링크입니다');
     }
 
+    if (!invitation.semesterTrack.isActive) {
+      throw new BadRequestException('현재 가입할 수 없는 초대입니다');
+    }
+
     return invitation;
+  }
+
+  private async findActiveSemesterTrack(
+    semesterId: number,
+    trackCode: TrackCode,
+  ) {
+    const semesterTrack = await this.prisma.semesterTrack.findFirst({
+      where: {
+        semesterId,
+        isActive: true,
+        track: {
+          code: trackCode,
+        },
+      },
+      include: {
+        semester: true,
+        track: true,
+      },
+    });
+
+    if (!semesterTrack) {
+      throw new BadRequestException('활성화된 기수-트랙이 아닙니다');
+    }
+
+    return semesterTrack;
   }
 
   private parseUserId(userIdHeader: string | undefined) {
@@ -147,5 +177,30 @@ export class InvitationService {
     const label = half === SemesterHalf.FIRST_HALF ? '상반기' : '하반기';
 
     return `${shortYear}-${label}`;
+  }
+
+  private serializeSemesterTrack(
+    semesterTrack: Prisma.SemesterTrackGetPayload<{
+      include: {
+        semester: true;
+        track: true;
+      };
+    }>,
+  ) {
+    return {
+      id: semesterTrack.id,
+      semester: {
+        year: semesterTrack.semester.year,
+        half: semesterTrack.semester.half,
+        label: this.formatSemester(
+          semesterTrack.semester.year,
+          semesterTrack.semester.half,
+        ),
+      },
+      track: {
+        code: semesterTrack.track.code,
+        name: semesterTrack.track.name,
+      },
+    };
   }
 }

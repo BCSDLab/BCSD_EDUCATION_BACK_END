@@ -27,7 +27,7 @@ export class AuthService {
         '비밀번호와 비밀번호 확인이 일치하지 않습니다',
       );
     }
-    if (!dto.agreeTerms || !dto.agreePrivacy) {
+    if (!dto.agreePolicies) {
       throw new BadRequestException(
         '운영 규정과 개인정보처리방침 동의는 필수입니다',
       );
@@ -36,14 +36,6 @@ export class AuthService {
     const invitation = await this.invitationService.findActiveInvitation(
       dto.token,
     );
-    const semesterTrack = await this.prisma.semesterTrack.findUnique({
-      where: { id: dto.semesterTrackId },
-      select: { id: true, isActive: true },
-    });
-
-    if (!semesterTrack || !semesterTrack.isActive) {
-      throw new BadRequestException('활성화된 기수-트랙이 아닙니다');
-    }
 
     const existingUser = await this.prisma.user.findUnique({
       where: { email: invitation.email },
@@ -61,7 +53,7 @@ export class AuthService {
         data: {
           email: invitation.email,
           password: passwordHash,
-          name: dto.name.trim(),
+          name: invitation.name,
           role: Role.BEGINNER,
           agreedTermsAt: agreedAt,
           agreedPrivacyAt: agreedAt,
@@ -71,7 +63,7 @@ export class AuthService {
       await tx.userSemesterTrack.create({
         data: {
           userId: createdUser.id,
-          semesterTrackId: semesterTrack.id,
+          semesterTrackId: invitation.semesterTrackId,
           role: Role.BEGINNER,
         },
       });
@@ -163,7 +155,7 @@ export class AuthService {
 
   async logout(dto: RefreshTokenDto) {
     const refreshTokenHash = this.authTokenService.hashToken(dto.refreshToken);
-    const result = await this.prisma.authSession.updateMany({
+    await this.prisma.authSession.updateMany({
       where: {
         refreshTokenHash,
         revokedAt: null,
@@ -172,9 +164,5 @@ export class AuthService {
         revokedAt: new Date(),
       },
     });
-
-    return {
-      revoked: result.count > 0,
-    };
   }
 }

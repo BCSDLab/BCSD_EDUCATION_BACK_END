@@ -24,6 +24,7 @@ model SemesterTrack {
   createdAt   DateTime            @default(now())
   semester    Semester            @relation(fields: [semesterId], references: [id], onDelete: Cascade)
   track       Track               @relation(fields: [trackId], references: [id], onDelete: Cascade)
+  invitations Invitation[]
   memberships UserSemesterTrack[]
 
   @@unique([semesterId, trackId])
